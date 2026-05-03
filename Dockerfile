@@ -81,7 +81,8 @@ COPY supervisor-ssr.conf /etc/supervisor.d/ssr.conf
 # Copy init scripts
 COPY frankenphp-init.sh /usr/local/bin/frankenphp-init
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint
-RUN chmod +x /usr/local/bin/frankenphp-init /usr/local/bin/docker-entrypoint
+COPY healthcheck.sh /usr/local/bin/healthcheck
+RUN chmod +x /usr/local/bin/frankenphp-init /usr/local/bin/docker-entrypoint /usr/local/bin/healthcheck
 
 # Fallback public files (replaced by downstream app)
 COPY public/ /app/public/
@@ -92,5 +93,8 @@ RUN mkdir -p /etc/frankenphp /data/caddy /config/caddy && \
     chown -R application:application /etc/frankenphp /data/caddy /config/caddy /tmp
 
 EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD /usr/local/bin/healthcheck
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]

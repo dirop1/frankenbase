@@ -56,6 +56,11 @@ cat >> "$CADDYFILE" << 'EOF'
 
     encode zstd br gzip
 
+    # Health check endpoint — no PHP, instant 200 for orchestrator probes
+    handle /healthz {
+        respond "OK" 200
+    }
+
     php_server
 }
 EOF

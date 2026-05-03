@@ -94,8 +94,8 @@ These are read when `RUN apply-php-security` runs in your downstream Dockerfile.
 
 | Variable | Default | Description |
 |---|---|---|
-| `UPLOAD_MAX_FILESIZE` | `64M` | PHP `upload_max_filesize` |
-| `POST_MAX_SIZE` | `65M` | PHP `post_max_size` (keep slightly above upload) |
+| `UPLOAD_MAX_FILESIZE` | `12M` | PHP `upload_max_filesize` |
+| `POST_MAX_SIZE` | `13M` | PHP `post_max_size` (keep slightly above upload) |
 | `MAX_EXECUTION_TIME` | `30` | PHP `max_execution_time` in seconds |
 | `MAX_INPUT_TIME` | `60` | PHP `max_input_time` in seconds |
 | `MEMORY_LIMIT` | `256M` | PHP `memory_limit` |
@@ -116,6 +116,33 @@ services:
       SSR_ENABLED: "true"
       TRUSTED_PROXIES: "173.245.48.0/20 103.21.244.0/22"   # Cloudflare IPv4 only
 ```
+
+## Health Check
+
+The image ships with a `/healthz` endpoint handled by Caddy (no PHP, instant response) and a `healthcheck` script that verifies both HTTP and all enabled Supervisor programs.
+
+```yaml
+services:
+  app:
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+```
+
+The `HEALTHCHECK` instruction is already baked into the image, so Docker and orchestrators pick it up automatically without any extra config.
+
+## Quick Setup
+
+Have a Laravel app? Run this from its root directory:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/dirop1/frankenbase/main/examples/setup.sh)
+```
+
+Or copy `examples/setup.sh` locally and run it. The script detects your app, asks a few questions, and generates a `Dockerfile`, `docker-compose.yml`, and `.dockerignore`.
 
 ## Ports
 
