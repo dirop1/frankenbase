@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
