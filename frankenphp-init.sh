@@ -2,19 +2,28 @@
 # FrankenPHP Init - Generates Caddyfile based on environment and starts FrankenPHP
 
 CADDYFILE="/etc/frankenphp/Caddyfile"
+WORKER_FILE="/app/public/frankenphp-worker.php"
 
 echo "[FrankenPHP Init] Generating Caddyfile..."
 
+# Global block
 cat > "$CADDYFILE" << 'EOF'
 {
     frankenphp {
-        # Keep PHP workers alive in memory between requests
-        # Octane publishes this file via: php artisan octane:install --server=frankenphp
+EOF
+
+if [ -f "$WORKER_FILE" ]; then
+    echo "[FrankenPHP Init] Worker mode active ($WORKER_FILE found)"
+    cat >> "$CADDYFILE" << 'EOF'
         worker /app/public/frankenphp-worker.php
+EOF
+else
+    echo "[FrankenPHP Init] Worker mode inactive (no frankenphp-worker.php)"
+fi
+
+cat >> "$CADDYFILE" << 'EOF'
     }
-    # Admin API bound to localhost only
     admin localhost:2019
-    # Trust upstream proxies (Cloudflare, Nginx Proxy Manager) for real IP extraction
     servers {
         trusted_proxies static 0.0.0.0/0 ::/0
     }

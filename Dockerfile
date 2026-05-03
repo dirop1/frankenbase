@@ -76,10 +76,16 @@ COPY supervisord.conf /etc/supervisord.conf
 COPY supervisor-frankenphp.conf /etc/supervisor.d/frankenphp.conf
 COPY supervisor-horizon.conf /etc/supervisor.d/horizon.conf
 COPY supervisor-scheduler.conf /etc/supervisor.d/scheduler.conf
+COPY supervisor-ssr.conf /etc/supervisor.d/ssr.conf
 
-# Copy FrankenPHP init script (generates Caddyfile + starts server)
+# Copy init scripts
 COPY frankenphp-init.sh /usr/local/bin/frankenphp-init
-RUN chmod +x /usr/local/bin/frankenphp-init
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint
+RUN chmod +x /usr/local/bin/frankenphp-init /usr/local/bin/docker-entrypoint
+
+# Fallback public files (replaced by downstream app)
+COPY public/ /app/public/
+RUN chown -R application:application /app/public
 
 # Create directories for Caddy (TLS certs, config cache)
 RUN mkdir -p /etc/frankenphp /data/caddy /config/caddy && \
@@ -87,4 +93,4 @@ RUN mkdir -p /etc/frankenphp /data/caddy /config/caddy && \
 
 EXPOSE 80
 
-ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf", "-n"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]

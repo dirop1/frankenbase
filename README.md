@@ -65,6 +65,18 @@ services:
 | Variable | Default | Description |
 |---|---|---|
 | `TZ` | `UTC` | Container timezone |
+| `HORIZON_ENABLED` | `true` | Set `false` to disable Laravel Horizon |
+| `SCHEDULER_ENABLED` | `true` | Set `false` to disable Laravel Scheduler |
+| `SSR_ENABLED` | `false` | Set `true` to enable Inertia SSR node server |
+
+```yaml
+services:
+  app:
+    environment:
+      HORIZON_ENABLED: "false"      # app doesn't use queues
+      SCHEDULER_ENABLED: "true"
+      SSR_ENABLED: "true"           # Inertia SSR
+```
 
 ## Ports
 
