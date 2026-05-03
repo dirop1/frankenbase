@@ -84,8 +84,8 @@ COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint
 COPY healthcheck.sh /usr/local/bin/healthcheck
 RUN chmod +x /usr/local/bin/frankenphp-init /usr/local/bin/docker-entrypoint /usr/local/bin/healthcheck
 
-# Fallback public files (replaced by downstream app)
-COPY public/ /app/public/
+# Fallback public files (replaced by downstream app's COPY . /app)
+COPY helpers/ /app/public/
 RUN chown -R application:application /app/public
 
 # Create directories for Caddy (TLS certs, config cache)
