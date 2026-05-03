@@ -30,24 +30,28 @@ Production-ready Laravel base image built on [FrankenPHP](https://frankenphp.dev
 ## Quick Start
 
 ```dockerfile
-FROM ghcr.io/dirop1/frankenbase:latest
+FROM ghcr.io/dirop1/frankenbase:v0.1.0
 
-# Copy your Laravel app
+# Set before apply-php-security — override defaults as needed
+ENV UPLOAD_MAX_FILESIZE=12M \
+    POST_MAX_SIZE=13M \
+    MEMORY_LIMIT=256M
+
 COPY . /app
 
-# Install and optimize
-RUN composer install --no-dev --optimize-autoloader
-RUN npm install && npm run build
-RUN php artisan config:cache && php artisan route:cache && php artisan view:cache
-
-# Harden PHP (respects env vars — see apply-php-security section below)
-RUN apply-php-security
-
-# Set permissions
-RUN chown -R application:application /app && \
-    chmod -R 755 /app && \
-    chmod -R 775 /app/storage /app/bootstrap/cache
+RUN composer install --no-dev --optimize-autoloader \
+    && npm install \
+    && npm run build \
+    && php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache \
+    && apply-php-security \
+    && chown -R application:application /app \
+    && chmod -R 755 /app \
+    && chmod -R 775 /app/storage /app/bootstrap/cache
 ```
+
+> **Worker mode:** FrankenPHP can keep your app in memory between requests (Laravel Octane). To enable it, publish the worker file: `php artisan octane:install --server=frankenphp`. The image detects `public/frankenphp-worker.php` at startup and activates worker mode automatically.
 
 ```yaml
 services:
@@ -161,11 +165,29 @@ Client → FrankenPHP/Caddy :80 → PHP Workers → Laravel
                               SSR server (optional)
 ```
 
-## Real IP Forwarding
+## Reverse Proxy
 
-`TRUSTED_PROXIES` controls which upstream IPs are trusted for `X-Forwarded-For` extraction. The default (`0.0.0.0/0`) works out of the box behind Cloudflare, Nginx Proxy Manager, or any reverse proxy.
+**This image is designed to run behind a reverse proxy.** Cloudflare, Nginx Proxy Manager, Traefik, or any proxy that sets standard `X-Forwarded-For` headers will work out of the box.
 
-> **Warning:** If your container is directly internet-facing (no proxy in front), set `TRUSTED_PROXIES` to your actual upstream CIDRs. Trusting all IPs in that scenario allows clients to spoof their IP via `X-Forwarded-For`.
+`TRUSTED_PROXIES` controls which upstream IPs Caddy trusts for real IP extraction. The default (`0.0.0.0/0`) covers all proxies without any config.
+
+> **Warning:** Do not expose this container directly to the internet without a proxy in front. The default `TRUSTED_PROXIES=0.0.0.0/0` in a direct-exposure setup allows any client to spoof their IP via `X-Forwarded-For`. If you must expose directly, set `TRUSTED_PROXIES` to your actual upstream CIDRs or an empty value.
+
+### Laravel also needs to trust proxies
+
+Caddy extracting the real IP is only half the story. Laravel must also be told to trust the proxy, otherwise `request()->ip()`, HTTPS detection, and URL generation will all behave incorrectly.
+
+**Laravel 11+** — in `bootstrap/app.php`:
+```php
+->withMiddleware(function (Middleware $middleware) {
+    $middleware->trustProxies(at: '*');
+})
+```
+
+**Laravel 10 and below** — in `app/Http/Middleware/TrustProxies.php`:
+```php
+protected $proxies = '*';
+```
 
 ## PHP Security Hardening
 
@@ -178,6 +200,28 @@ Run `apply-php-security` in your downstream Dockerfile to apply opinionated PHP 
 - Configurable upload and memory limits (see env vars above)
 
 > **Note:** `session.cookie_secure = 1` requires HTTPS. This image exposes port 80 — TLS must be handled upstream (Cloudflare, reverse proxy, or your orchestrator). If running without TLS, override with `session.cookie_secure = 0` in your own ini file.
+
+## AI Agent Setup
+
+You can ask Claude Code (or any capable coding agent) to wire up frankenbase for your Laravel app. Paste this prompt from your project root:
+
+```
+I want to dockerize this Laravel app using the frankenbase base image (ghcr.io/dirop1/frankenbase:latest).
+
+Please do the following:
+1. Create a Dockerfile that:
+   - Extends ghcr.io/dirop1/frankenbase:latest
+   - Sets ENV for UPLOAD_MAX_FILESIZE, POST_MAX_SIZE, MEMORY_LIMIT before calling apply-php-security
+   - Chains all build steps into a single RUN: composer install --no-dev --optimize-autoloader, npm install, npm run build, php artisan config:cache, php artisan route:cache, php artisan view:cache, apply-php-security, chown/chmod permissions
+2. Create a docker-compose.yml with app, db (mariadb:11), and redis (redis:7-alpine) services.
+   Include HORIZON_ENABLED, SCHEDULER_ENABLED, SSR_ENABLED, TRUSTED_PROXIES env vars.
+   Wire the healthcheck to /usr/local/bin/healthcheck.
+3. Create a .dockerignore excluding: .git, node_modules, vendor, tests, .env, .env.*, storage/logs, storage/framework/cache, storage/framework/sessions, storage/framework/views.
+4. Check if public/frankenphp-worker.php exists. If not, run: php artisan octane:install --server=frankenphp to publish the worker file and enable FrankenPHP worker mode.
+5. Ask me: app name, whether I use Inertia SSR, whether I use Horizon, and my desired upload limit.
+
+Reference docs: https://github.com/dirop1/frankenbase
+```
 
 ## License
 

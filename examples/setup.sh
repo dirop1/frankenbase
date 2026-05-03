@@ -27,6 +27,10 @@ read -p "Use Inertia SSR? (node bootstrap/ssr/ssr.js) [y/N]: " SSR_INPUT
 SSR_ENABLED="false"
 [[ "$SSR_INPUT" =~ ^[Yy]$ ]] && SSR_ENABLED="true"
 
+read -p "Use Laravel Octane worker mode (frankenphp-worker.php)? [Y/n]: " OCTANE_INPUT
+OCTANE_ENABLED="true"
+[[ "$OCTANE_INPUT" =~ ^[Nn]$ ]] && OCTANE_ENABLED="false"
+
 read -p "Use Laravel Horizon (queues)? [Y/n]: " HORIZON_INPUT
 HORIZON_ENABLED="true"
 [[ "$HORIZON_INPUT" =~ ^[Nn]$ ]] && HORIZON_ENABLED="false"
@@ -44,7 +48,7 @@ if [ -f "Dockerfile" ]; then
     warn "Dockerfile already exists — skipping."
 else
     cat > Dockerfile << EOF
-FROM ghcr.io/dirop1/frankenbase:latest
+FROM ghcr.io/dirop1/frankenbase:v0.1.0
 
 ENV UPLOAD_MAX_FILESIZE=${UPLOAD_SIZE} \\
     POST_MAX_SIZE=${POST_SIZE}
@@ -65,6 +69,16 @@ EOF
     info "Dockerfile created."
 fi
 
+if [ "$OCTANE_ENABLED" = "true" ]; then
+    if [ ! -f "public/frankenphp-worker.php" ]; then
+        warn "Worker mode enabled but public/frankenphp-worker.php not found."
+        warn "Run: php artisan octane:install --server=frankenphp"
+        warn "This publishes the worker file required to activate FrankenPHP worker mode."
+    else
+        info "public/frankenphp-worker.php found — worker mode will be active."
+    fi
+fi
+
 # ── docker-compose.yml ────────────────────────────────────────────────────────
 if [ -f "docker-compose.yml" ]; then
     warn "docker-compose.yml already exists — skipping."
@@ -81,46 +95,17 @@ services:
       APP_ENV: production
       APP_KEY: \${APP_KEY}
       APP_URL: \${APP_URL:-http://localhost}
-      DB_CONNECTION: \${DB_CONNECTION:-mysql}
-      DB_HOST: \${DB_HOST:-db}
-      DB_PORT: \${DB_PORT:-3306}
-      DB_DATABASE: \${DB_DATABASE}
-      DB_USERNAME: \${DB_USERNAME}
-      DB_PASSWORD: \${DB_PASSWORD}
-      REDIS_HOST: \${REDIS_HOST:-redis}
       HORIZON_ENABLED: "${HORIZON_ENABLED}"
       SSR_ENABLED: "${SSR_ENABLED}"
-      # TRUSTED_PROXIES: "0.0.0.0/0 ::/0"  # default — scope to your proxy IPs
-    depends_on:
-      - db
-      - redis
+      # This image is designed to run behind a reverse proxy (Cloudflare, Nginx Proxy Manager, Traefik).
+      # TRUSTED_PROXIES defaults to 0.0.0.0/0 — scope to your proxy IPs in production.
+      # TRUSTED_PROXIES: "173.245.48.0/20 103.21.244.0/22"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
-
-  db:
-    image: mariadb:11
-    restart: unless-stopped
-    environment:
-      MARIADB_DATABASE: \${DB_DATABASE}
-      MARIADB_USER: \${DB_USERNAME}
-      MARIADB_PASSWORD: \${DB_PASSWORD}
-      MARIADB_ROOT_PASSWORD: \${DB_ROOT_PASSWORD}
-    volumes:
-      - db_data:/var/lib/mysql
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-
-volumes:
-  db_data:
-  redis_data:
 EOF
     info "docker-compose.yml created."
 fi
@@ -147,6 +132,36 @@ Dockerfile
 README.md
 EOF
     info ".dockerignore created."
+fi
+
+# ── Laravel TrustProxies check ────────────────────────────────────────────────
+TRUST_OK=false
+
+# Laravel 11+: bootstrap/app.php
+if [ -f "bootstrap/app.php" ] && grep -q "trustProxies" bootstrap/app.php; then
+    TRUST_OK=true
+fi
+
+# Laravel 10 and below: TrustProxies middleware
+if [ -f "app/Http/Middleware/TrustProxies.php" ] && grep -qE "proxies\s*=\s*['\*]|\*['\"]" app/Http/Middleware/TrustProxies.php; then
+    TRUST_OK=true
+fi
+
+if [ "$TRUST_OK" = false ]; then
+    echo ""
+    warn "Laravel TrustProxies is not configured."
+    warn "This image runs behind a reverse proxy — without this, request()->ip(),"
+    warn "HTTPS detection, and URL generation will behave incorrectly."
+    echo ""
+    warn "Laravel 11+ — add to bootstrap/app.php:"
+    echo '    ->withMiddleware(function (Middleware $middleware) {'
+    echo '        $middleware->trustProxies(at: '"'"'*'"'"');'
+    echo '    })'
+    echo ""
+    warn "Laravel 10 and below — set in app/Http/Middleware/TrustProxies.php:"
+    echo '    protected $proxies = '"'"'*'"'"';'
+else
+    info "Laravel TrustProxies is configured."
 fi
 
 echo ""
