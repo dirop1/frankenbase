@@ -30,7 +30,7 @@ Production-ready Laravel base image built on [FrankenPHP](https://frankenphp.dev
 ## Quick Start
 
 ```dockerfile
-FROM ghcr.io/dirop1/frankenbase:0.2.0
+FROM ghcr.io/dirop1/frankenbase:0.3.0
 
 # Set before apply-php-security — override defaults as needed
 ENV UPLOAD_MAX_FILESIZE=12M \

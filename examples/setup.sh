@@ -48,7 +48,7 @@ if [ -f "Dockerfile" ]; then
     warn "Dockerfile already exists — skipping."
 else
     cat > Dockerfile << EOF
-FROM ghcr.io/dirop1/frankenbase:0.2.0
+FROM ghcr.io/dirop1/frankenbase:0.3.0
 
 ENV UPLOAD_MAX_FILESIZE=${UPLOAD_SIZE} \\
     POST_MAX_SIZE=${POST_SIZE}
