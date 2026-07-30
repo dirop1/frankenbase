@@ -1,8 +1,10 @@
 FROM dunglas/frankenphp:1.12.2
 
 ARG TARGETARCH
+ARG FRANKENBASE_VERSION=dev
 
-ENV TZ=UTC
+ENV TZ=UTC \
+    FRANKENBASE_VERSION=${FRANKENBASE_VERSION}
 
 # ── Layer 1: PHP extensions (slowest, changes least — cache is precious here)
 RUN install-php-extensions \
@@ -64,10 +66,12 @@ RUN chmod +x \
     /usr/local/bin/docker-entrypoint \
     /usr/local/bin/healthcheck
 
-RUN mkdir -p /etc/frankenphp /data/caddy /config/caddy /run/frankenbase && \
+RUN mkdir -p /etc/frankenbase /etc/frankenphp /data/caddy /config/caddy /run/frankenbase && \
+    printf '%s\n' "$FRANKENBASE_VERSION" > /etc/frankenbase/version && \
+    chmod 0444 /etc/frankenbase/version && \
     chown -R application:application /etc/frankenphp /data/caddy /config/caddy && \
-    chown root:root /run/frankenbase && \
-    chmod 755 /run/frankenbase
+    chown root:root /etc/frankenbase /run/frankenbase && \
+    chmod 755 /etc/frankenbase /run/frankenbase
 
 # ============================================================================
 # DOWNSTREAM APP USAGE:

@@ -140,6 +140,40 @@ The image ships with a `/healthz` liveness endpoint handled directly by Caddy. T
 
 FrankenPHP metrics are exposed only through the localhost Caddy admin endpoint. A Supervisor-managed watchdog samples worker queue depth and completed-request count. If requests remain queued with no progress for 180 seconds, it restarts only FrankenPHP while leaving Horizon, the scheduler, and SSR running. Busy workers without a queue never trigger an automatic restart. Disable this with `FRANKENPHP_WATCHDOG_ENABLED=false` when recovery is managed externally.
 
+### Local runtime status
+
+Local dashboards and diagnostics can read two stable, read-only files without access to the root-owned Supervisor socket:
+
+- `/etc/frankenbase/version` contains the image version (`dev` for builds that do not supply `FRANKENBASE_VERSION`).
+- `/run/frankenbase/watchdog.json` contains watchdog schema version 1 and is updated atomically.
+
+The watchdog state reports whether recovery is enabled, its current state, observation time, queue depth, completed-request count, stall duration, restart or cooldown countdown, configured thresholds, restart count, and the last restart result.
+
+```json
+{
+  "schema_version": 1,
+  "enabled": true,
+  "state": "healthy",
+  "observed_at": "2026-01-01T12:00:00Z",
+  "queue_depth": 0,
+  "request_count": 1200,
+  "stalled_seconds": 0,
+  "restart_in_seconds": 0,
+  "interval_seconds": 10,
+  "stall_timeout_seconds": 180,
+  "queue_threshold": 1,
+  "cooldown_seconds": 60,
+  "cooldown_remaining_seconds": 0,
+  "restart_count": 0,
+  "last_restart_at": null,
+  "last_restart_result": null
+}
+```
+
+Possible states are `starting`, `healthy`, `stalled`, `restarting`, `cooldown`, `metrics_unavailable`, `inactive`, and `disabled`. Except for the static `disabled` state, consumers should treat a status older than twice `interval_seconds` as stale. Restart history is scoped to the watchdog process lifetime, and the runtime-local file resets when the container is recreated.
+
+These files are deliberately read-only to the application user. Do not grant the application access to `/run/frankenbase/supervisor.sock` merely to build a dashboard.
+
 ```yaml
 services:
   app:
