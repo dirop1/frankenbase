@@ -7,7 +7,7 @@ Production-ready Laravel base image built on [FrankenPHP](https://frankenphp.dev
 | Component | Version |
 |---|---|
 | FrankenPHP | 1.12.2 |
-| PHP | 8.5.5 |
+| PHP | 8.5.6 |
 | Caddy | 2.11.2 |
 | Node.js | 20.x |
 
@@ -18,7 +18,7 @@ Production-ready Laravel base image built on [FrankenPHP](https://frankenphp.dev
 | FrankenPHP | HTTP server + PHP worker runtime |
 | Composer | Dependency management |
 | Node.js 20 | Asset compilation + Inertia SSR |
-| Supervisor | Process management |
+| Supervisor | Process management and stalled-worker recovery |
 | Laravel Horizon | Queue worker |
 | Laravel Scheduler | `schedule:work` via Supervisor |
 | PHP security hardening | `apply-php-security` script |
@@ -30,7 +30,7 @@ Production-ready Laravel base image built on [FrankenPHP](https://frankenphp.dev
 ## Quick Start
 
 ```dockerfile
-FROM ghcr.io/dirop1/frankenbase:v0.1.0
+FROM ghcr.io/dirop1/frankenbase:0.2.0
 
 # Set before apply-php-security — override defaults as needed
 ENV UPLOAD_MAX_FILESIZE=12M \
@@ -91,6 +91,19 @@ storage/framework/cache
 | `SCHEDULER_ENABLED` | `true` | Set `false` to disable Laravel Scheduler |
 | `SSR_ENABLED` | `false` | Set `true` to enable Inertia SSR node server |
 | `TRUSTED_PROXIES` | `0.0.0.0/0 ::/0` | Space-separated upstream proxy CIDRs |
+| `FRANKENPHP_MAX_WAIT_TIME` | `10s` | Maximum time a request may wait for a free PHP thread |
+| `REQUEST_MAX_EXECUTION_TIME` | `30` | Maximum worker request execution time in seconds (`0` disables it) |
+| `MAX_REQUESTS` | `1000` | Positive request count handled before an application worker is recycled |
+| `FRANKENPHP_NUM_THREADS` | upstream default | Total initial PHP threads; unset uses FrankenPHP's CPU-based default |
+| `FRANKENPHP_MAX_THREADS` | upstream default | Maximum PHP threads; accepts an integer or `auto` |
+| `FRANKENPHP_WORKER_COUNT` | upstream default | Application worker count; setting only this automatically reserves one extra regular PHP thread |
+| `FRANKENPHP_WATCHDOG_ENABLED` | `true` | Restart a stalled worker pool after the configured threshold |
+| `FRANKENPHP_WATCHDOG_INTERVAL` | `10` | Metrics sampling interval in seconds |
+| `FRANKENPHP_WATCHDOG_STALL_TIMEOUT` | `180` | Seconds with queued requests and no completed requests before restart |
+| `FRANKENPHP_WATCHDOG_QUEUE_THRESHOLD` | `1` | Minimum queued requests required to consider the pool stalled |
+| `FRANKENPHP_WATCHDOG_COOLDOWN` | `60` | Seconds to wait after an automatic restart |
+| `APP_HEALTHCHECK_PATH` | `/up` | Application path probed by the container healthcheck; 4xx responses are accepted for older apps |
+| `APP_HEALTHCHECK_TIMEOUT` | `3` | Application probe timeout in seconds (1–10) |
 
 ### Build-time (`apply-php-security`)
 
@@ -123,7 +136,9 @@ services:
 
 ## Health Check
 
-The image ships with a `/healthz` endpoint handled by Caddy (no PHP, instant response) and a `healthcheck` script that verifies both HTTP and all enabled Supervisor programs.
+The image ships with a `/healthz` liveness endpoint handled directly by Caddy. The container healthcheck also requests `APP_HEALTHCHECK_PATH` through PHP and verifies that every enabled Supervisor program is running.
+
+FrankenPHP metrics are exposed only through the localhost Caddy admin endpoint. A Supervisor-managed watchdog samples worker queue depth and completed-request count. If requests remain queued with no progress for 180 seconds, it restarts only FrankenPHP while leaving Horizon, the scheduler, and SSR running. Busy workers without a queue never trigger an automatic restart. Disable this with `FRANKENPHP_WATCHDOG_ENABLED=false` when recovery is managed externally.
 
 ```yaml
 services:
@@ -131,7 +146,7 @@ services:
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthcheck"]
       interval: 30s
-      timeout: 5s
+      timeout: 15s
       retries: 3
       start_period: 30s
 ```
@@ -158,11 +173,11 @@ Or copy `examples/setup.sh` locally and run it. The script detects your app, ask
 ## Architecture
 
 ```
-Client → FrankenPHP/Caddy :80 → PHP Workers → Laravel
-                                      ↓
-                              Horizon (queues)
-                              Scheduler (cron)
-                              SSR server (optional)
+Client → FrankenPHP/Caddy :80 → bounded wait queue → PHP Workers → Laravel
+                                      ↑                    ↓
+                              stall watchdog       Horizon (queues)
+                                                   Scheduler (cron)
+                                                   SSR server (optional)
 ```
 
 ## Reverse Proxy

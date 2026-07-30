@@ -1,4 +1,5 @@
 .git
 .github
+.pi-subagents
 *.md
 TODO.md

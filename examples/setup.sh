@@ -48,7 +48,7 @@ if [ -f "Dockerfile" ]; then
     warn "Dockerfile already exists — skipping."
 else
     cat > Dockerfile << EOF
-FROM ghcr.io/dirop1/frankenbase:v0.1.0
+FROM ghcr.io/dirop1/frankenbase:0.2.0
 
 ENV UPLOAD_MAX_FILESIZE=${UPLOAD_SIZE} \\
     POST_MAX_SIZE=${POST_SIZE}
@@ -103,7 +103,7 @@ services:
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthcheck"]
       interval: 30s
-      timeout: 5s
+      timeout: 15s
       retries: 3
       start_period: 30s
 EOF

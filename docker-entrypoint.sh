@@ -6,7 +6,8 @@ set -e
 #
 # HORIZON_ENABLED=false    — disable Laravel Horizon (queue worker)
 # SCHEDULER_ENABLED=false  — disable Laravel Scheduler
-# SSR_ENABLED=true         — enable Inertia SSR node server
+# SSR_ENABLED=true                    — enable Inertia SSR node server
+# FRANKENPHP_WATCHDOG_ENABLED=false   — disable stalled-worker recovery
 
 if [ "${HORIZON_ENABLED:-true}" != "true" ]; then
     echo "[entrypoint] Horizon disabled"
@@ -16,6 +17,11 @@ fi
 if [ "${SCHEDULER_ENABLED:-true}" != "true" ]; then
     echo "[entrypoint] Scheduler disabled"
     rm -f /etc/supervisor.d/scheduler.conf
+fi
+
+if [ "${FRANKENPHP_WATCHDOG_ENABLED:-true}" != "true" ]; then
+    echo "[entrypoint] FrankenPHP watchdog disabled"
+    rm -f /etc/supervisor.d/frankenphp-watchdog.conf
 fi
 
 if [ "${SSR_ENABLED:-false}" != "true" ]; then

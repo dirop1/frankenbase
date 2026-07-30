@@ -48,21 +48,26 @@ WORKDIR /app
 # ── Layer 4: Scripts and configs (changes most often — kept at the bottom)
 COPY supervisord.conf /etc/supervisord.conf
 COPY supervisor-frankenphp.conf /etc/supervisor.d/frankenphp.conf
+COPY supervisor-watchdog.conf /etc/supervisor.d/frankenphp-watchdog.conf
 COPY supervisor-horizon.conf /etc/supervisor.d/horizon.conf
 COPY supervisor-scheduler.conf /etc/supervisor.d/scheduler.conf
 COPY supervisor-ssr.conf /etc/supervisor.d/ssr.conf
 COPY apply-php-security.sh /usr/local/bin/apply-php-security
 COPY frankenphp-init.sh /usr/local/bin/frankenphp-init
+COPY frankenphp-watchdog.sh /usr/local/bin/frankenphp-watchdog
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint
 COPY healthcheck.sh /usr/local/bin/healthcheck
 RUN chmod +x \
     /usr/local/bin/apply-php-security \
     /usr/local/bin/frankenphp-init \
+    /usr/local/bin/frankenphp-watchdog \
     /usr/local/bin/docker-entrypoint \
     /usr/local/bin/healthcheck
 
-RUN mkdir -p /etc/frankenphp /data/caddy /config/caddy && \
-    chown -R application:application /etc/frankenphp /data/caddy /config/caddy /tmp
+RUN mkdir -p /etc/frankenphp /data/caddy /config/caddy /run/frankenbase && \
+    chown -R application:application /etc/frankenphp /data/caddy /config/caddy && \
+    chown root:root /run/frankenbase && \
+    chmod 755 /run/frankenbase
 
 # ============================================================================
 # DOWNSTREAM APP USAGE:
@@ -87,7 +92,7 @@ RUN mkdir -p /etc/frankenphp /data/caddy /config/caddy && \
 
 EXPOSE 80
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=15s --start-period=30s --retries=3 \
     CMD /usr/local/bin/healthcheck
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
