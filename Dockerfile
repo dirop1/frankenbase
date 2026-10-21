@@ -1,4 +1,8 @@
-FROM dunglas/frankenphp:1.12.2
+# Official multiarch upstream containing the PHP security fixes.
+FROM dunglas/frankenphp:1.13.1-php8.5@sha256:55c63014b845d24c3986b72ce7fdd1bdbb3c9219a1ecdc37bf828c7f038e6f1a
+
+# Fail closed if the base is changed to an unpatched or non-ZTS PHP runtime.
+RUN php -r 'if (PHP_MAJOR_VERSION !== 8 || PHP_MINOR_VERSION !== 5 || version_compare(PHP_VERSION, "8.5.12", "<") || !PHP_ZTS) { fwrite(STDERR, "PHP 8.5 >= 8.5.12 ZTS required; found " . PHP_VERSION . PHP_EOL); exit(1); }'
 
 ARG TARGETARCH
 ARG FRANKENBASE_VERSION=dev

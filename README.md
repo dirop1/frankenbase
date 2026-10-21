@@ -6,9 +6,9 @@ Production-ready Laravel base image built on [FrankenPHP](https://frankenphp.dev
 
 | Component | Version |
 |---|---|
-| FrankenPHP | 1.12.2 |
-| PHP | 8.5.6 |
-| Caddy | 2.11.2 |
+| FrankenPHP | 1.13.1 |
+| PHP | 8.5.12 ZTS |
+| Caddy | 2.11.7 |
 | Node.js | 20.x |
 
 ## What's included
@@ -27,10 +27,20 @@ Production-ready Laravel base image built on [FrankenPHP](https://frankenphp.dev
 
 `bcmath` `intl` `mbstring` `pdo` `pdo_mysql` `pdo_pgsql` `pgsql` `xml` `pcntl` `zip` `exif` `sockets` `gd` `redis`
 
+## PHP security update (0.3.0)
+
+This release uses the official FrankenPHP 1.13.1 PHP 8.5 image, pinned to a multiarch digest containing PHP 8.5.12. It fixes CVE-2026-109618 and CVE-2026-109619. Disabling session upload progress alone is not a complete mitigation; see the [official PHP advisory](https://www.php.net/).
+
+After this release is published, update your application's `FROM` to `ghcr.io/dirop1/frankenbase:0.3.0-php8.5.12`, rebuild with `docker compose build --pull`, and recreate every application container. Restarting an old container does not update PHP. Existing version tags and digest-pinned images do not change automatically.
+
+CI tests PHP/ZTS, required extensions, the normal Supervisor entrypoint, healthcheck, and HTTP in classic and persistent-worker modes on native amd64 and arm64 runners before merging the public image tags. These smoke tests use a minimal PHP fixture, not a full Laravel/Horizon/database integration.
+
+Release image tags include both Frankenbase and PHP versions: `0.3.0-php8.5.12`. Compatibility tags `0.3.0`, `0.3` and `latest` remain available after publication. Prefer the full version tag for downstream applications; `latest` moves with each release. Both architectures must pass the exact PHP version checks before release tags are merged.
+
 ## Quick Start
 
 ```dockerfile
-FROM ghcr.io/dirop1/frankenbase:0.3.0
+FROM ghcr.io/dirop1/frankenbase:0.3.0-php8.5.12
 
 # Set before apply-php-security — override defaults as needed
 ENV UPLOAD_MAX_FILESIZE=12M \
@@ -255,11 +265,11 @@ Run `apply-php-security` in your downstream Dockerfile to apply opinionated PHP 
 You can ask Claude Code (or any capable coding agent) to wire up frankenbase for your Laravel app. Paste this prompt from your project root:
 
 ```
-I want to dockerize this Laravel app using the frankenbase base image (ghcr.io/dirop1/frankenbase:latest).
+I want to dockerize this Laravel app using the frankenbase base image (ghcr.io/dirop1/frankenbase:0.3.0-php8.5.12).
 
 Please do the following:
 1. Create a Dockerfile that:
-   - Extends ghcr.io/dirop1/frankenbase:latest
+   - Extends ghcr.io/dirop1/frankenbase:0.3.0-php8.5.12
    - Sets ENV for UPLOAD_MAX_FILESIZE, POST_MAX_SIZE, MEMORY_LIMIT before calling apply-php-security
    - Chains all build steps into a single RUN: composer install --no-dev --optimize-autoloader, npm install, npm run build, php artisan config:cache, php artisan route:cache, php artisan view:cache, apply-php-security, chown/chmod permissions
 2. Create a docker-compose.yml with app, db (mariadb:11), and redis (redis:7-alpine) services.
