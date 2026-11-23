@@ -54,6 +54,15 @@ for ($request = 0; $request < 1000; ++$request) {
 }
 PHP
     fi
+    # Hidden-path fixtures: none of these may be served or executed.
+    mkdir -p "$PUBLIC/.dir" "$PUBLIC/assets" "$PUBLIC/.well-known"
+    echo 'SECRET=1' > "$PUBLIC/.env"
+    echo 'deny all' > "$PUBLIC/.htaccess"
+    echo '<?php echo "EXECUTED";' > "$PUBLIC/.dir/x.php"
+    echo 'hidden' > "$PUBLIC/assets/.DS_Store"
+    echo 'visible' > "$PUBLIC/assets/ok.txt"
+    echo 'acme' > "$PUBLIC/.well-known/token.txt"
+    chmod -R a+rX "$PUBLIC"
     chmod 755 "$PUBLIC"
     chmod 644 "$PUBLIC/"*.php
     CONTAINER="$(docker run -d --network none \
@@ -90,6 +99,17 @@ PHP
             ' "$EXPECTED_PHP"
     done
     docker exec "$CONTAINER" frankenphp validate --config /etc/frankenphp/Caddyfile
+    http_status() {
+        docker exec "$CONTAINER" curl --noproxy '*' -s --path-as-is -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1$1"
+    }
+    for HIDDEN in /.env /%2Eenv /%2e%65nv /.htaccess /.dir/x.php /assets/.DS_Store; do
+        CODE="$(http_status "$HIDDEN")"
+        [ "$CODE" = 404 ] || { echo "Hidden path $HIDDEN returned $CODE ($MODE)" >&2; exit 1; }
+    done
+    for VISIBLE in /assets/ok.txt /.well-known/token.txt; do
+        CODE="$(http_status "$VISIBLE")"
+        [ "$CODE" = 200 ] || { echo "Visible path $VISIBLE returned $CODE ($MODE)" >&2; exit 1; }
+    done
     docker exec --user application "$CONTAINER" php -r '
         $state = json_decode(file_get_contents("/run/frankenbase/watchdog.json"), true, 512, JSON_THROW_ON_ERROR);
         if ($state["schema_version"] !== 1 || $state["enabled"] !== true || !in_array($state["state"], ["healthy", "inactive"], true)) { exit(1); }

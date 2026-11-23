@@ -159,6 +159,17 @@ cat >> "$CADDYFILE" << 'EOF'
     handle /healthz {
         respond "OK" 200
     }
+
+    # Never serve or execute anything under a path segment that starts with a dot
+    # (.env, .htaccess, .git/, .dir/x.php, assets/.DS_Store). Caddy decodes %2e
+    # before matching. /.well-known/ stays reachable for ACME and similar.
+    @frankenbase_hidden {
+        path_regexp frankenbase_hidden (^|/)\.[^/]+
+        not path /.well-known/*
+    }
+    handle @frankenbase_hidden {
+        respond 404
+    }
 EOF
 
 if [ -f "$WORKER_FILE" ]; then
